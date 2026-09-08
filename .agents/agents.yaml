@@ -1,0 +1,78 @@
+# Role registry for the multi-agent workflow.
+# cwd: main = main checkout (repo root, on main) | worktree = .worktrees/<id>
+# Paths are relative to the repo root. <id> is the task id.
+# The matching system prompt lives at .agents/prompts/<role>.md
+
+roles:
+  planner:
+    prompt: .agents/prompts/planner.md
+    cwd: main
+    read:
+      - plans/backlog.md
+      - plans/active/*/plan.md        # only to check duplicates/dependencies
+      - docs/architecture/**
+      - .agents/templates/**
+    write:
+      - plans/active/<id>/plan.md
+      - plans/backlog.md              # move items out of the backlog
+    forbidden:
+      - any source code (grep only, no full reads)
+      - creating branches or worktrees
+
+  architect:
+    prompt: .agents/prompts/architect.md
+    cwd: main
+    read:
+      - plans/active/<id>/**
+      - docs/architecture/**
+      - source code (grep-first, read-only)
+    write:
+      - docs/architecture/**
+      - plans/active/<id>/adr-*.md
+      - plans/active/<id>/plan.md     # Context and Risks sections only
+    forbidden:
+      - any code changes
+      - changing Scope or Acceptance criteria (planner's contract)
+
+  coder:
+    prompt: .agents/prompts/coder.md
+    cwd: worktree
+    read:
+      - plans/active/<id>/plan.md
+      - plans/active/<id>/handoffs/**
+      - docs/architecture/**          # only ADRs linked from the plan
+      - worktree code limited to the plan's Scope section
+    write:
+      - worktree code (Scope section only)
+      - plans/active/<id>/plan.md     # check off task checkboxes only
+      - plans/active/<id>/handoffs/**
+    forbidden:
+      - editing code in the main checkout
+      - reading other tasks' plans/worktrees/branches
+      - committing to main
+
+  tester:
+    prompt: .agents/prompts/tester.md
+    cwd: worktree
+    read:
+      - plans/active/<id>/plan.md     # acceptance criteria are the contract
+      - plans/active/<id>/handoffs/**
+      - worktree code under test
+    write:
+      - worktree test files
+      - plans/active/<id>/test-report.md
+      - plans/active/<id>/handoffs/**
+    forbidden:
+      - modifying production code (hand back to coder with a failing test)
+      - changing acceptance criteria
+
+  reviewer:   # optional role
+    prompt: null                          # no dedicated prompt; ad-hoc session
+    cwd: main
+    read:
+      - git diff main...task/<id>
+      - plans/active/<id>/**
+    write:
+      - plans/active/<id>/plan.md       # review notes section only
+    forbidden:
+      - code changes (request them via handoff to coder)
