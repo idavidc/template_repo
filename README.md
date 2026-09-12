@@ -10,6 +10,16 @@ code changes happen in per-task worktrees (`.worktrees/<id>/`). Agents
 communicate through small structured files, never through shared conversation
 history.
 
+## Creating a new project from this template
+
+```bash
+.agents/scripts/instantiate.sh ~/repos/template_repo ~/repos/my-project [git@github.com:me/my-project.git]
+```
+
+Copies the template (without `.git` or worktrees), resets `plans/` and the
+backlog, renames the project in docs, and starts a fresh git history with one
+commit on `main` (plus a push if you give a remote URL).
+
 ## Quickstart
 
 ```bash
@@ -38,7 +48,7 @@ history.
 | `AGENTS.md` | Rules every agent reads first | — |
 | `.agents/prompts/` | One system prompt per role | — |
 | `.agents/templates/` | plan / handoff / test-report / ADR templates | — |
-| `.agents/scripts/` | task lifecycle scripts | — |
+| `.agents/scripts/` | task lifecycle + `instantiate.sh` (new project from template) | — |
 | `plans/backlog.md` | raw ideas | planner |
 | `plans/active/<id>/` | plan, ADRs, handoffs, test report | planner → coder → tester |
 | `plans/done/<id>/` | archived tasks | — |
