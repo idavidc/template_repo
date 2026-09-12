@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Instantiate a copy of a template repository with a fresh git history.
+# Instantiate a new project from a template repository, with a fresh git
+# history and its own GitHub remote.
 #
-# usage: instantiate.sh <template-dir> <new-dir> [remote-url]
+# usage: instantiate.sh [template-dir] <name-or-path>
 #
-#   <template-dir>  existing git repo to copy (e.g. ~/repos/template_repo)
-#   <new-dir>       destination path for the copy (created if missing)
-#   [remote-url]    optional; set as origin and push main (needs git push to work)
+#   [template-dir]  source template repo. Default: ~/repos/template_repo
+#   <name-or-path>  new project, given as either:
+#                     - a bare name (e.g. "my-project")  -> created at ~/repos/my-project
+#                     - a path   (e.g. "/tmp/x" or "~/x") -> created there
 #
 # What it does:
 #   1. Copies the template, excluding .git, .worktrees, and OS/editor noise.
@@ -14,17 +16,43 @@
 #        plans/active/*, plans/done/*  -> removed (empty dirs kept)
 #        plans/backlog.md              -> reset to header only
 #   4. Replaces the template's repo name with the new one in *.md files.
-#   5. git init, initial commit on main, optional remote + push.
+#   5. git init, initial commit on main.
+#   6. Creates a GitHub repo named after the folder (private, no template
+#      files) via `gh`, sets it as origin, and pushes main.
+#      Skipped with --no-push.
 set -euo pipefail
 
-TEMPLATE="${1:?usage: instantiate.sh <template-dir> <new-dir> [remote-url]}"
-NEW="${2:?usage: instantiate.sh <template-dir> <new-dir> [remote-url]}"
-REMOTE="${3:-}"
+NO_PUSH=0
+if [[ "${1:-}" == "--no-push" ]]; then
+  NO_PUSH=1
+  shift
+fi
+
+if [[ $# -lt 1 || $# -gt 2 ]]; then
+  echo "usage: instantiate.sh [--no-push] [template-dir] <name-or-path>" >&2
+  exit 1
+fi
+
+# The name/path is always the last argument; template-dir is optional.
+if [[ $# -eq 1 ]]; then
+  TEMPLATE="$HOME/repos/template_repo"
+  TARGET="${1}"
+else
+  TEMPLATE="${1}"
+  TARGET="${2}"
+fi
 
 TEMPLATE="$(cd "$TEMPLATE" && pwd)"
+TEMPLATE_NAME="$(basename "$TEMPLATE")"
+
+# Bare name -> ~/repos/<name>; anything else is a path.
+if [[ "$TARGET" == */* ]]; then
+  NEW="${TARGET/#\~/$HOME}"
+else
+  NEW="$HOME/repos/$TARGET"
+fi
 NEW="$(cd "$(dirname "$NEW")" 2>/dev/null || mkdir -p "$(dirname "$NEW")" && cd "$(dirname "$NEW")" && pwd)/$(basename "$NEW")"
 NEW_NAME="$(basename "$NEW")"
-TEMPLATE_NAME="$(basename "$TEMPLATE")"
 
 # --- sanity checks -----------------------------------------------------------
 if [[ ! -d "$TEMPLATE/.git" ]]; then
@@ -76,16 +104,25 @@ git init -q -b main
 git add -A
 git commit -q -m "Initialize $NEW_NAME from $TEMPLATE_NAME template"
 
-if [[ -n "$REMOTE" ]]; then
-  git remote add origin "$REMOTE"
-  git push -u origin main
-  echo "Pushed main to $REMOTE"
+# --- 6. GitHub remote + push ---------------------------------------------------
+if [[ "$NO_PUSH" -eq 1 ]]; then
+  echo "Skipped GitHub push (--no-push). When ready:"
+  echo "  gh repo create $NEW_NAME --private --source . --remote origin --push"
 else
-  echo "No remote given. When ready: git remote add origin <url> && git push -u origin main"
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "error: gh CLI not found; install it or re-run with --no-push" >&2
+    exit 1
+  fi
+  if ! gh auth status >/dev/null 2>&1; then
+    echo "error: gh is not authenticated. Run: gh auth login" >&2
+    exit 1
+  fi
+  echo "Creating GitHub repo '$NEW_NAME'..."
+  gh repo create "$NEW_NAME" --private --source . --remote origin --push
 fi
 
 echo
 echo "Done: $NEW"
 echo "  - fresh git history (1 commit on main)"
 echo "  - plans/active and plans/done emptied, backlog reset"
-echo "  - next: .agents/scripts/new-task.sh 0001 \"<first task>\""
+echo "  - next: cd $NEW && .agents/scripts/new-task.sh 0001 \"<first task>\""

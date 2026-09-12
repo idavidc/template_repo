@@ -13,12 +13,15 @@ history.
 ## Creating a new project from this template
 
 ```bash
-.agents/scripts/instantiate.sh ~/repos/template_repo ~/repos/my-project [git@github.com:me/my-project.git]
+.agents/scripts/instantiate.sh my-project
 ```
 
-Copies the template (without `.git` or worktrees), resets `plans/` and the
-backlog, renames the project in docs, and starts a fresh git history with one
-commit on `main` (plus a push if you give a remote URL).
+The template defaults to `~/repos/template_repo`; the argument is the new
+project name (created at `~/repos/my-project`) or a full path. The script
+copies the template (without `.git` or worktrees), resets `plans/` and the
+backlog, renames the project in docs, starts a fresh git history with one
+commit on `main`, then creates a private GitHub repo of the same name and
+pushes (needs `gh auth login`; pass `--no-push` to skip).
 
 ## Quickstart
 
